@@ -1,7 +1,8 @@
-const mongoose = require('mongoose');
-const Schema = mongoose.Schema;
+import { Account } from '../entities/Account';
+import { model } from 'mongoose';
+import { Schema } from 'mongoose'
 
-const schema = new Schema({
+const schema = new Schema<Account>({
     email: { type: String, unique: true, required: true },
     passwordHash: { type: String, required: true },
     title: { type: String, required: true },
@@ -20,18 +21,18 @@ const schema = new Schema({
     updated: Date
 });
 
-schema.virtual('isVerified').get(function () {
+schema.virtual('isVerified').get(function (this: any) {
     return !!(this.verified || this.passwordReset);
 });
 
 schema.set('toJSON', {
     virtuals: true,
     versionKey: false,
-    transform: function (doc, ret) {
+    transform: function (_, ret) {
         // remove these props when object is serialized
         delete ret._id;
         delete ret.passwordHash;
     }
 });
 
-module.exports = mongoose.model('Account', schema);
+export const accountModel = model<Account>('Account', schema)

@@ -1,0 +1,20 @@
+export type Account = {
+    id: string,
+    email: string,
+    passwordHash: string,
+    title: string,
+    firstName: string,
+    lastName: string,
+    acceptTerms: boolean,
+    role: string,
+    verificationToken?: string,
+    verified: number,
+    isVerified: boolean,
+    resetToken?: {
+        token: string,
+        expires: Date,
+    },
+    passwordReset: number,
+    created: number,
+    updated: number,
+}

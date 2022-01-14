@@ -1,5 +1,4 @@
-const mongoose = require('mongoose');
-const Schema = mongoose.Schema;
+import mongoose, { Schema } from 'mongoose';
 
 const schema = new Schema({
     account: { type: Schema.Types.ObjectId, ref: 'Account' },
@@ -12,12 +11,12 @@ const schema = new Schema({
     replacedByToken: String
 });
 
-schema.virtual('isExpired').get(function () {
+schema.virtual('isExpired').get(function (this: mongoose.VirtualTypeOptions) {
     return Date.now() >= this.expires;
 });
 
-schema.virtual('isActive').get(function () {
+schema.virtual('isActive').get(function (this: mongoose.VirtualTypeOptions) {
     return !this.revoked && !this.isExpired;
 });
 
-module.exports = mongoose.model('RefreshToken', schema);
+export const refreshTokenModel = mongoose.model('RefreshToken', schema)

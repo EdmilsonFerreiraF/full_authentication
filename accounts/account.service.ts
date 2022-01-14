@@ -1,7 +1,7 @@
 ﻿import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
 import crypto from "crypto"
-import {Request} from 'express'
+import { Request } from 'express'
 import dotenv from 'dotenv'
 
 import { accountModel } from './account.model'
@@ -39,12 +39,15 @@ export async function serviceAuthenticate({ email, password, ipAddress }: {email
 
 export async function serviceRefreshToken({ token, ipAddress }: { token: RefreshTokenModel, ipAddress: string }){
     const refreshToken = await serviceGetRefreshToken(token);
+
     const { account } = refreshToken;
 
     // replace old refresh token with a new one and save
     const newRefreshToken: any = serviceGenerateRefreshToken(account, ipAddress);
+
     refreshToken.revoked = Date.now();
     refreshToken.revokedByIp = ipAddress;
+
     refreshToken.replacedByToken = newRefreshToken.token;
     await refreshToken.save();
     await newRefreshToken.save();
@@ -66,6 +69,7 @@ export async function serviceRevokeToken({ token, ipAddress }: { token: RefreshT
     // revoke token and save
     refreshToken.revoked = Date.now();
     refreshToken.revokedByIp = ipAddress;
+
     await refreshToken.save();
 }
 
@@ -81,6 +85,7 @@ export async function serviceRegister(params: any, origin: string) {
 
     // first registered account is an admin
     const isFirstAccount = (await accountModel.countDocuments({})) === 0;
+
     account.role = isFirstAccount ? toRole("ADMIN") : toRole("USER");
     account.verificationToken = serviceRandomTokenString();
 
@@ -101,6 +106,7 @@ export async function serviceVerifyEmail({ token }: { token: RefreshTokenModel }
 
     account.verified = Date.now();
     account.verificationToken = undefined;
+
     await account.save();
 }
 
@@ -142,16 +148,19 @@ export async function serviceResetPassword({ token, password }: { token: Refresh
     account.passwordHash = serviceHash(password);
     account.passwordReset = Date.now();
     account.resetToken = undefined;
+
     await account.save();
 }
 
 export async function serviceGetAll() {
     const accounts = await accountModel.find();
+
     return accounts.map((x: Account) => serviceBasicDetails(x));
 }
 
 export async function serviceGetById(id: string) {
     const account = await serviceGetAccount(id);
+
     return serviceBasicDetails(account);
 }
 
@@ -188,6 +197,7 @@ export async function serviceUpdate(id: string, params: any) {
 
     // copy params to account and save
     Object.assign(account, params);
+    
     account.updated = Date.now();
     await account.save();
 
@@ -196,6 +206,7 @@ export async function serviceUpdate(id: string, params: any) {
 
 export async function serviceDelete(id: string) {
     const account = await serviceGetAccount(id);
+
     await account.remove();
 }
 
@@ -203,13 +214,16 @@ export async function serviceDelete(id: string) {
 
 export async function serviceGetAccount(id: string) {
     if (!isValidId(id)) throw 'Account not found';
+
     const account = await accountModel.findById(id);
+
     if (!account) throw 'Account not found';
     return account;
 }
 
 export async function serviceGetRefreshToken(token: RefreshTokenModel) {
     const refreshToken = await refreshTokenModel.findOne({ token }).populate('account');
+
     if (!refreshToken || !refreshToken.isActive) throw 'Invalid token';
     return refreshToken;
 }
@@ -239,11 +253,13 @@ export function serviceRandomTokenString() {
 
 export function serviceBasicDetails(account: Account) {
     const { id, title, firstName, lastName, email, role, created, updated, isVerified } = account;
+
     return { id, title, firstName, lastName, email, role, created, updated, isVerified };
 }
 
 export async function serviceSendVerificationEmail(account: Account, origin: string) {
     let message;
+
     if (origin) {
         const verifyUrl = `${origin}/account/verify-email?token=${account.verificationToken}`;
         message = `<p>Please click the below link to verify your email address:</p>
@@ -252,7 +268,6 @@ export async function serviceSendVerificationEmail(account: Account, origin: str
         message = `<p>Please use the below token to verify your email address with the <code>/account/verify-email</code> api route:</p>
                    <p><code>${account.verificationToken}</code></p>`;
     }
-
 
     const mailOptions: IMailerOptions = {
         to: account.email as string,
@@ -267,6 +282,7 @@ export async function serviceSendVerificationEmail(account: Account, origin: str
 
 export async function serviceSendAlreadyRegisteredEmail(email: string, origin: string) {
     let message;
+
     if (origin) {
         message = `<p>If you don't know your password please visit the <a href="${origin}/account/forgot-password">forgot password</a> page.</p>`;
     } else {
@@ -286,6 +302,7 @@ export async function serviceSendAlreadyRegisteredEmail(email: string, origin: s
 
 export async function serviceSendPasswordResetEmail(account: Account, origin: string) {
     let message;
+
     if (origin) {
         const resetUrl = `${origin}/account/reset-password?token=${account.resetToken?.token}`;
         message = `<p>Please click the below link to reset your password, the link will be valid for 1 day:</p>

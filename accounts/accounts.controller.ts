@@ -17,9 +17,10 @@ import {
     serviceDelete
  } from './account.service'
 import { RefreshTokenModel } from '../entities/RefreshTokenModel'
-import { Role, toRole } from '../entities/Role'
+import { Role } from '../entities/Role'
 import { validateRequest } from '../_middleware/validate-request'
 import { authorize } from '../_middleware/authorize'
+import { IUser } from 'entities/User'
 
 export const router = express.Router()
 
@@ -32,13 +33,18 @@ router.post('/verify-email', verifyEmailSchema, verifyEmail);
 router.post('/forgot-password', forgotPasswordSchema, forgotPassword);
 router.post('/validate-reset-token', validateResetTokenSchema, validateResetToken);
 router.post('/reset-password', resetPasswordSchema, resetPassword);
-router.get('/', authorize(toRole("ADMIN")), getAll);
+
+const adminRole = [
+    Role.ADMIN
+]
+
+router.get('/', authorize(adminRole), getAll);
 router.get('/:id', authorize(), getById);
-router.post('/', authorize(toRole("ADMIN")), createSchema, create);
+router.post('/', authorize(adminRole), createSchema, create);
 router.put('/:id', authorize(), updateSchema, update);
 router.delete('/:id', authorize(), _delete);
 
-function authenticateSchema(req: Request, res: Response, next: NextFunction) {
+function authenticateSchema(req: Request, _: any, next: NextFunction) {
     const schema = Joi.object({
         email: Joi.string().required(),
         password: Joi.string().required()
@@ -50,6 +56,7 @@ function authenticateSchema(req: Request, res: Response, next: NextFunction) {
 function authenticate(req: Request, res: Response, next: NextFunction) {
     const { email, password } = req.body;
     const ipAddress = req.ip;
+
     serviceAuthenticate({ email, password, ipAddress })
         .then(({ refreshToken, ...account }: any) => {
             setTokenCookie(res, refreshToken);
@@ -61,6 +68,7 @@ function authenticate(req: Request, res: Response, next: NextFunction) {
 function refreshToken(req: Request, res: Response, next: NextFunction) {
     const token = req.cookies.refreshToken;
     const ipAddress = req.ip;
+
     serviceRefreshToken({ token, ipAddress })
         .then(({ refreshToken, ...account }: any) => {
             setTokenCookie(res, refreshToken);
@@ -69,7 +77,7 @@ function refreshToken(req: Request, res: Response, next: NextFunction) {
         .catch(next);
 }
 
-function revokeTokenSchema(req: Request, res: Response, next: NextFunction) {
+function revokeTokenSchema(req: Request, _: any, next: NextFunction) {
     const schema = Joi.object({
         token: Joi.string().empty('')
     });
@@ -83,8 +91,10 @@ function revokeToken(req: Request, res: Response, next: NextFunction) {
     const ipAddress = req.ip;
 
     if (!token) return res.status(400).json({ message: 'Token is required' });
-    const user: any = req.user
+
+    const user: IUser = req.user as IUser
     // users can revoke their own tokens and admins can revoke any tokens
+
     if (!user?.ownsToken(token) && user?.role !== Role.ADMIN) {
         return res.status(401).json({ message: 'Unauthorized' });
     }
@@ -94,7 +104,7 @@ function revokeToken(req: Request, res: Response, next: NextFunction) {
         .catch(next);
 }
 
-function registerSchema(req: Request, res: Response, next: NextFunction) {
+function registerSchema(req: Request, _: any, next: NextFunction) {
     const schema = Joi.object({
         title: Joi.string().required(),
         firstName: Joi.string().required(),
@@ -114,7 +124,7 @@ function register(req: Request, res: Response, next: NextFunction) {
         .catch(next);
 }
 
-function verifyEmailSchema(req: Request, res: Response, next: NextFunction) {
+function verifyEmailSchema(req: Request, _: any, next: NextFunction) {
     const schema = Joi.object({
         token: Joi.string().required()
     });
@@ -128,7 +138,7 @@ function verifyEmail(req: Request, res: Response, next: NextFunction) {
         .catch(next);
 }
 
-function forgotPasswordSchema(req: Request, res: Response, next: NextFunction) {
+function forgotPasswordSchema(req: Request, _: any, next: NextFunction) {
     const schema = Joi.object({
         email: Joi.string().email().required()
     });
@@ -142,7 +152,7 @@ function forgotPassword(req: Request, res: Response, next: NextFunction) {
         .catch(next);
 }
 
-function validateResetTokenSchema(req: Request, res: Response, next: NextFunction) {
+function validateResetTokenSchema(req: Request, _: any, next: NextFunction) {
     const schema = Joi.object({
         token: Joi.string().required()
     });
@@ -156,7 +166,7 @@ function validateResetToken(req: Request, res: Response, next: NextFunction) {
         .catch(next);
 }
 
-function resetPasswordSchema(req: Request, res: Response, next: NextFunction) {
+function resetPasswordSchema(req: Request, _: any, next: NextFunction) {
     const schema = Joi.object({
         token: Joi.string().required(),
         password: Joi.string().min(6).required(),
@@ -172,7 +182,7 @@ function resetPassword(req: Request, res: Response, next: NextFunction) {
         .catch(next);
 }
 
-function getAll(req: Request, res: Response, next: NextFunction) {
+function getAll(_: Request, res: Response, next: NextFunction) {
     serviceGetAll()
         .then((accounts: any) => res.json(accounts))
         .catch(next);
@@ -180,9 +190,9 @@ function getAll(req: Request, res: Response, next: NextFunction) {
 
 function getById(req: Request, res: Response, next: NextFunction) {
     // users can get their own account and admins can get any account
-    const user = req.body.user
+    const user: IUser = req.user as IUser
 
-    if (req.params.id !== user.id && user.role !== Role.ADMIN) {
+    if (req.params.id !== user?.id && user?.role !== Role.ADMIN) {
         return res.status(401).json({ message: 'Unauthorized' });
     }
 
@@ -191,7 +201,7 @@ function getById(req: Request, res: Response, next: NextFunction) {
         .catch(next);
 }
 
-function createSchema(req: Request, res: Response, next: NextFunction) {
+function createSchema(req: Request, _: any, next: NextFunction) {
     const schema = Joi.object({
         title: Joi.string().required(),
         firstName: Joi.string().required(),
@@ -211,7 +221,7 @@ function create(req: Request, res: Response, next: NextFunction) {
         .catch(next);
 }
 
-function updateSchema(req: Request, res: Response, next: NextFunction) {
+function updateSchema(req: Request, _: any, next: NextFunction) {
     const schemaRules: any = {
         title: Joi.string().empty(''),
         firstName: Joi.string().empty(''),

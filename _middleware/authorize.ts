@@ -9,10 +9,13 @@ import { IUser } from 'entities/User';
 
 dotenv.config()
 
-export function authorize(roles: Role[] = [Role.USER]) {
+export function authorize(roles: Role[] = []) {
     // roles param can be a single role string (e.g. Role.User or 'User') 
     // or an array of roles (e.g. [Role.Admin, Role.User] or ['Admin', 'User'])
-
+    if (typeof roles === 'string') {
+        roles = [roles];
+    }
+    
     return [
         // authenticate JWT token and attach user to request object (req.user)
         jwt({ secret: process.env.secret as string, algorithms: ['HS256'] }),
@@ -25,9 +28,11 @@ export function authorize(roles: Role[] = [Role.USER]) {
             const refreshTokens = await refreshTokenModel.find({ account: account?.id });
 
             console.log('account', account)
-            console.log('roles', roles)
+            console.log('roles[0]', roles[0])
+            console.log('account?.role', account?.role)
             console.log('roles.length', roles.length)
             console.log('roles.length', roles.length)
+            console.log('toRole(account?.role as string)', toRole(account?.role as string))
             console.log('roles.includes(toRole(account.role))', roles.includes(toRole(account?.role as string)))
             if (!account || (roles.length && !roles.includes(toRole(account.role as string)))) {
                 // account no longer exists or role not authorized

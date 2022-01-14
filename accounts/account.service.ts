@@ -10,7 +10,7 @@ import { sendEmail } from '../_helpers/send-email'
 import { isValidId } from '../_helpers/db'
 import { Account } from '../entities/Account'
 import { RefreshTokenModel } from '../entities/RefreshTokenModel'
-import { toRole } from '../entities/Role'
+import { Role, toRole } from '../entities/Role'
 import { IMailerOptions } from '../entities/Mailer'
 
 dotenv.config()
@@ -86,7 +86,7 @@ export async function serviceRegister(params: any, origin: string) {
     // first registered account is an admin
     const isFirstAccount = (await accountModel.countDocuments({})) === 0;
 
-    account.role = isFirstAccount ? toRole("ADMIN") : toRole("USER");
+    account.role = isFirstAccount ? Role.ADMIN : Role.USER;
     account.verificationToken = serviceRandomTokenString();
 
     // hash password

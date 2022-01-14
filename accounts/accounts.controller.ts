@@ -231,7 +231,7 @@ function updateSchema(req: Request, _: any, next: NextFunction) {
         confirmPassword: Joi.string().valid(Joi.ref('password')).empty('')
     };
 
-    const user = req.body.user
+    const user: IUser = req.user as IUser
 
     // only admins can update role
     if (user.role === Role.ADMIN) {
@@ -244,7 +244,12 @@ function updateSchema(req: Request, _: any, next: NextFunction) {
 }
 
 function update(req: Request, res: Response, next: NextFunction) {
-    const user = req.body.user
+    const user: IUser = req.user as IUser
+
+    console.log("user", user)
+    console.log("req.params.id", req.params.id)
+    console.log("user.id", user.id)
+    console.log("user.role", user.role)
 
     // users can update their own account and admins can update any account
     if (req.params.id !== user?.id && user?.role !== Role.ADMIN) {
@@ -257,7 +262,7 @@ function update(req: Request, res: Response, next: NextFunction) {
 }
 
 function _delete(req: Request, res: Response, next: NextFunction) {
-    const user = req.body.user
+    const user: IUser = req.user as IUser
 
     // users can delete their own account and admins can delete any account
     if (req.params.id !== user?.id && user?.role !== Role.ADMIN) {

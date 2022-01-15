@@ -1,6 +1,6 @@
+import { model, Schema } from 'mongoose';
+
 import { Account } from '../entities/Account';
-import { model } from 'mongoose';
-import { Schema } from 'mongoose'
 
 const schema = new Schema<Account>({
     email: { type: String, unique: true, required: true },

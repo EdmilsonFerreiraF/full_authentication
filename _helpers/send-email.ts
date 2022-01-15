@@ -1,5 +1,6 @@
 import nodemailer, { TransportOptions } from 'nodemailer'
 import dotenv from 'dotenv'
+
 import { IMailerOptions } from '../entities/Mailer'
 
 dotenv.config()

@@ -5,7 +5,7 @@ import dotenv from 'dotenv'
 import { accountModel, refreshTokenModel } from '../_helpers/db';
 import { Role, toRole } from '../entities/Role'
 import { RefreshTokenModel } from '../entities/RefreshTokenModel';
-import { IUser } from 'entities/User';
+import { IUser } from '../entities/User';
 
 dotenv.config()
 
@@ -15,7 +15,7 @@ export function authorize(roles: Role[] = []) {
     if (typeof roles === 'string') {
         roles = [roles];
     }
-    
+
     return [
         // authenticate JWT token and attach user to request object (req.user)
         jwt({ secret: process.env.secret as string, algorithms: ['HS256'] }),
@@ -27,13 +27,6 @@ export function authorize(roles: Role[] = []) {
             const account = await accountModel.findById(user?.id);
             const refreshTokens = await refreshTokenModel.find({ account: account?.id });
 
-            console.log('account', account)
-            console.log('roles[0]', roles[0])
-            console.log('account?.role', account?.role)
-            console.log('roles.length', roles.length)
-            console.log('roles.length', roles.length)
-            console.log('toRole(account?.role as string)', toRole(account?.role as string))
-            console.log('roles.includes(toRole(account.role))', roles.includes(toRole(account?.role as string)))
             if (!account || (roles.length && !roles.includes(toRole(account.role as string)))) {
                 // account no longer exists or role not authorized
                 return res.status(401).json({ message: 'Unauthorized' });
@@ -42,6 +35,7 @@ export function authorize(roles: Role[] = []) {
             // authentication and authorization successful
             user.role = toRole(account.role)
             user.ownsToken = (token: string) => !!refreshTokens.find((x: RefreshTokenModel) => x.token === token);
+            
             next();
         }
     ];

@@ -1,21 +1,19 @@
 ﻿import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
 import crypto from "crypto"
-import { Request } from 'express'
 import dotenv from 'dotenv'
 
 import { accountModel } from './account.model'
 import { refreshTokenModel } from './refresh-token.model'
 import { sendEmail } from '../_helpers/send-email'
 import { isValidId } from '../_helpers/db'
-import { Account } from '../entities/Account'
-import { RefreshTokenModel } from '../entities/RefreshTokenModel'
-import { Role, toRole } from '../entities/Role'
+import { Account, IServiceAuthenticateDTO, IServiceBasicDetailsDTO, IServiceCreateDTO, IServiceDeleteDTO, IServiceForgotPasswordDTO, IServiceGenerateJwtTokenDTO, IServiceGenerateRefreshTokenDTO, IServiceGetAccountDTO, IServiceGetByIdDTO, IServiceGetRefreshTokenDTO, IServiceHashDTO, IServiceRefreshTokenDTO, IServiceRegisterDTO, IServiceResetPasswordDTO, IServiceRevokeTokenDTO, IServiceSendAlreadyRegisteredEmailDTO, IServiceSendPasswordResetEmailDTO, IServiceSendVerificationEmailDTO, IServiceUpdateDTO, IServiceValidateResetTokenDTO, IServiceVerifyEmailDTO } from '../entities/Account'
+import { Role } from '../entities/Role'
 import { IMailerOptions } from '../entities/Mailer'
 
 dotenv.config()
 
-export async function serviceAuthenticate({ email, password, ipAddress }: {email: string, password: string, ipAddress: string}) {
+export async function serviceAuthenticate({ email, password, ipAddress }: IServiceAuthenticateDTO) {
     const account: Account | null = await accountModel.findOne({ email });
 
     if (!account || !account.isVerified || !bcrypt.compareSync(password, account.passwordHash as string)) {
@@ -23,27 +21,27 @@ export async function serviceAuthenticate({ email, password, ipAddress }: {email
     }
 
     // authentication successful so generate jwt and refresh tokens
-    const jwtToken = serviceGenerateJwtToken(account);
-    const refreshToken: any = serviceGenerateRefreshToken(account, ipAddress);
+    const jwtToken = serviceGenerateJwtToken({ account }) ;
+    const refreshToken: any = serviceGenerateRefreshToken({ account, ipAddress });
 
     // save refresh token
     await refreshToken.save();
 
     // return basic details and tokens
     return {
-        ...serviceBasicDetails(account),
+        ...serviceBasicDetails({ account }),
         jwtToken,
         refreshToken: refreshToken.token
     };
 }
 
-export async function serviceRefreshToken({ token, ipAddress }: { token: RefreshTokenModel, ipAddress: string }){
-    const refreshToken = await serviceGetRefreshToken(token);
+export async function serviceRefreshToken({ token, ipAddress }: IServiceRefreshTokenDTO){
+    const refreshToken = await serviceGetRefreshToken({ token });
 
     const { account } = refreshToken;
 
     // replace old refresh token with a new one and save
-    const newRefreshToken: any = serviceGenerateRefreshToken(account, ipAddress);
+    const newRefreshToken: any = serviceGenerateRefreshToken({ account, ipAddress });
 
     refreshToken.revoked = Date.now();
     refreshToken.revokedByIp = ipAddress;
@@ -53,7 +51,7 @@ export async function serviceRefreshToken({ token, ipAddress }: { token: Refresh
     await newRefreshToken.save();
 
     // generate new jwt
-    const jwtToken = serviceGenerateJwtToken(account);
+    const jwtToken = serviceGenerateJwtToken({ account }) ;
 
     // return basic details and tokens
     return {
@@ -63,8 +61,8 @@ export async function serviceRefreshToken({ token, ipAddress }: { token: Refresh
     };
 }
 
-export async function serviceRevokeToken({ token, ipAddress }: { token: RefreshTokenModel, ipAddress: string }) {
-    const refreshToken = await serviceGetRefreshToken(token);
+export async function serviceRevokeToken({ token, ipAddress }: IServiceRevokeTokenDTO) {
+    const refreshToken = await serviceGetRefreshToken({ token });
 
     // revoke token and save
     refreshToken.revoked = Date.now();
@@ -73,11 +71,11 @@ export async function serviceRevokeToken({ token, ipAddress }: { token: RefreshT
     await refreshToken.save();
 }
 
-export async function serviceRegister(params: any, origin: string) {
+export async function serviceRegister({ params, origin }: IServiceRegisterDTO) {
     // validate
     if (await accountModel.findOne({ email: params.email })) {
         // send already registered error in email to prevent account enumeration
-        return await serviceSendAlreadyRegisteredEmail(params.email, origin);
+        return await serviceSendAlreadyRegisteredEmail({ email: params.email, origin });
     }
 
     // create account object
@@ -90,16 +88,16 @@ export async function serviceRegister(params: any, origin: string) {
     account.verificationToken = serviceRandomTokenString();
 
     // hash password
-    account.passwordHash = serviceHash(params.password);
+    account.passwordHash = serviceHash({ password: params.password });
 
     // save account
     await account.save();
 
     // send email
-    await serviceSendVerificationEmail(account, origin);
+    await serviceSendVerificationEmail({ account, origin });
 }
 
-export async function serviceVerifyEmail({ token }: { token: RefreshTokenModel }) {
+export async function serviceVerifyEmail({ token }: IServiceVerifyEmailDTO) {
     const account = await accountModel.findOne({ verificationToken: token as any });
 
     if (!account) throw 'Verification failed';
@@ -110,7 +108,7 @@ export async function serviceVerifyEmail({ token }: { token: RefreshTokenModel }
     await account.save();
 }
 
-export async function serviceForgotPassword({ email }: {email: string}, origin: string){
+export async function serviceForgotPassword({ email }: IServiceForgotPasswordDTO){
     const account = await accountModel.findOne({ email });
 
     // always return ok response to prevent email enumeration
@@ -124,10 +122,10 @@ export async function serviceForgotPassword({ email }: {email: string}, origin: 
     await account.save();
 
     // send email
-    await serviceSendPasswordResetEmail(account, origin);
+    await serviceSendPasswordResetEmail({ account, origin });
 }
 
-export async function serviceValidateResetToken({ token }: { token: RefreshTokenModel }) {
+export async function serviceValidateResetToken({ token }: IServiceValidateResetTokenDTO) {
     const account = await accountModel.findOne({
         'resetToken.token': token,
         'resetToken.expires': { $gt: Date.now() }
@@ -136,7 +134,7 @@ export async function serviceValidateResetToken({ token }: { token: RefreshToken
     if (!account) throw 'Invalid token';
 }
 
-export async function serviceResetPassword({ token, password }: { token: RefreshTokenModel, password: string }) {
+export async function serviceResetPassword({ token, password }: IServiceResetPasswordDTO) {
     const account = await accountModel.findOne({
         'resetToken.token': token,
         'resetToken.expires': { $gt: Date.now() }
@@ -145,7 +143,7 @@ export async function serviceResetPassword({ token, password }: { token: Refresh
     if (!account) throw 'Invalid token';
 
     // update password and remove reset token
-    account.passwordHash = serviceHash(password);
+    account.passwordHash = serviceHash({ password });
     account.passwordReset = Date.now();
     account.resetToken = undefined;
 
@@ -155,16 +153,16 @@ export async function serviceResetPassword({ token, password }: { token: Refresh
 export async function serviceGetAll() {
     const accounts = await accountModel.find();
 
-    return accounts.map((x: Account) => serviceBasicDetails(x));
+    return accounts.map((x: Account) => serviceBasicDetails({ account: x }));
 }
 
-export async function serviceGetById(id: string) {
-    const account = await serviceGetAccount(id);
+export async function serviceGetById({ id }: IServiceGetByIdDTO) {
+    const account = await serviceGetAccount({ id });
 
-    return serviceBasicDetails(account);
+    return serviceBasicDetails({ account });
 }
 
-export async function serviceCreate(params: any) {
+export async function serviceCreate({ params }: IServiceCreateDTO) {
     // validate
     if (await accountModel.findOne({ email: params.email })) {
         throw 'Email "' + params.email + '" is already registered';
@@ -179,11 +177,11 @@ export async function serviceCreate(params: any) {
     // save account
     await account.save();
 
-    return serviceBasicDetails(account);
+    return serviceBasicDetails({ account });
 }
 
-export async function serviceUpdate(id: string, params: any) {
-    const account = await serviceGetAccount(id);
+export async function serviceUpdate({ id, params }: IServiceUpdateDTO) {
+    const account = await serviceGetAccount({ id });
 
     // validate (if email was changed)
     if (params.email && account.email !== params.email && await accountModel.findOne({ email: params.email })) {
@@ -201,43 +199,43 @@ export async function serviceUpdate(id: string, params: any) {
     account.updated = Date.now();
     await account.save();
 
-    return serviceBasicDetails(account);
+    return serviceBasicDetails({ account });
 }
 
-export async function serviceDelete(id: string) {
-    const account = await serviceGetAccount(id);
+export async function serviceDelete({ id }: IServiceDeleteDTO) {
+    const account = await serviceGetAccount({ id });
 
     await account.remove();
 }
 
 // helper functions
 
-export async function serviceGetAccount(id: string) {
+export async function serviceGetAccount({ id }: IServiceGetAccountDTO) {
     if (!isValidId(id)) throw 'Account not found';
 
-    const account = await accountModel.findById(id);
+    const account = await accountModel.findById({ id });
 
     if (!account) throw 'Account not found';
     return account;
 }
 
-export async function serviceGetRefreshToken(token: RefreshTokenModel) {
+export async function serviceGetRefreshToken({ token }: IServiceGetRefreshTokenDTO) {
     const refreshToken = await refreshTokenModel.findOne({ token }).populate('account');
 
     if (!refreshToken || !refreshToken.isActive) throw 'Invalid token';
     return refreshToken;
 }
 
-export function serviceHash(password: string) {
+export function serviceHash({ password }: IServiceHashDTO) {
     return bcrypt.hashSync(password, 10);
 }
 
-export function serviceGenerateJwtToken(account: Account) {
+export function serviceGenerateJwtToken({ account }: IServiceGenerateJwtTokenDTO) {
     // create a jwt token containing the account id that expires in 15 minutes
     return jwt.sign({ sub: account.id, id: account.id }, process.env.secret as string, { expiresIn: '15m' });
 }
 
-export function serviceGenerateRefreshToken(account: Account, ipAddress: Request["ip"]) {
+export function serviceGenerateRefreshToken({ account, ipAddress }: IServiceGenerateRefreshTokenDTO) {
     // create a refresh token that expires in 7 days
     return new refreshTokenModel({
         account,
@@ -251,13 +249,13 @@ export function serviceRandomTokenString() {
     return crypto.randomBytes(40).toString('hex');
 }
 
-export function serviceBasicDetails(account: Account) {
+export function serviceBasicDetails({ account }: IServiceBasicDetailsDTO) {
     const { id, title, firstName, lastName, email, role, created, updated, isVerified } = account;
 
     return { id, title, firstName, lastName, email, role, created, updated, isVerified };
 }
 
-export async function serviceSendVerificationEmail(account: Account, origin: string) {
+export async function serviceSendVerificationEmail({ account, origin }: IServiceSendVerificationEmailDTO) {
     let message;
 
     if (origin) {
@@ -280,7 +278,7 @@ export async function serviceSendVerificationEmail(account: Account, origin: str
     await sendEmail(mailOptions);
 }
 
-export async function serviceSendAlreadyRegisteredEmail(email: string, origin: string) {
+export async function serviceSendAlreadyRegisteredEmail({ email, origin }: IServiceSendAlreadyRegisteredEmailDTO) {
     let message;
 
     if (origin) {
@@ -300,7 +298,7 @@ export async function serviceSendAlreadyRegisteredEmail(email: string, origin: s
     await sendEmail(mailOptions);
 }
 
-export async function serviceSendPasswordResetEmail(account: Account, origin: string) {
+export async function serviceSendPasswordResetEmail({ account, origin }: IServiceSendPasswordResetEmailDTO) {
     let message;
 
     if (origin) {

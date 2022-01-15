@@ -24,6 +24,9 @@ import { IUser } from 'entities/User'
 
 export const router = express.Router()
 
+const adminRole = [
+    Role.ADMIN
+]
 // routes
 router.post('/authenticate', authenticateSchema, authenticate);
 router.post('/refresh-token', refreshToken);
@@ -33,10 +36,6 @@ router.post('/verify-email', verifyEmailSchema, verifyEmail);
 router.post('/forgot-password', forgotPasswordSchema, forgotPassword);
 router.post('/validate-reset-token', validateResetTokenSchema, validateResetToken);
 router.post('/reset-password', resetPasswordSchema, resetPassword);
-
-const adminRole = [
-    Role.ADMIN
-]
 
 router.get('/', authorize(adminRole), getAll);
 router.get('/:id', authorize(), getById);
@@ -119,7 +118,7 @@ function registerSchema(req: Request, _: any, next: NextFunction) {
 }
 
 function register(req: Request, res: Response, next: NextFunction) {
-    serviceRegister(req.body, req.get('origin') as string)
+    serviceRegister({ params: req.body, origin: req.get('origin') as string })
         .then(() => res.json({ message: 'Registration successful, please check your email for verification instructions' }))
         .catch(next);
 }
@@ -147,7 +146,7 @@ function forgotPasswordSchema(req: Request, _: any, next: NextFunction) {
 }
 
 function forgotPassword(req: Request, res: Response, next: NextFunction) {
-    serviceForgotPassword(req.body, req.get('origin') as string)
+    serviceForgotPassword({ email: req.body, origin: req.get('origin') as string })
         .then(() => res.json({ message: 'Please check your email for password reset instructions' }))
         .catch(next);
 }
@@ -196,7 +195,7 @@ function getById(req: Request, res: Response, next: NextFunction) {
         return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    serviceGetById(req.params.id)
+    serviceGetById({ id: req.params.id })
         .then((account: any) => account ? res.json(account) : res.sendStatus(404))
         .catch(next);
 }
@@ -246,17 +245,12 @@ function updateSchema(req: Request, _: any, next: NextFunction) {
 function update(req: Request, res: Response, next: NextFunction) {
     const user: IUser = req.user as IUser
 
-    console.log("user", user)
-    console.log("req.params.id", req.params.id)
-    console.log("user.id", user.id)
-    console.log("user.role", user.role)
-
     // users can update their own account and admins can update any account
     if (req.params.id !== user?.id && user?.role !== Role.ADMIN) {
         return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    serviceUpdate(req.params.id, req.body)
+    serviceUpdate({ id: req.params.id, params: req.body })
         .then((account: any) => res.json(account))
         .catch(next);
 }
@@ -269,7 +263,7 @@ function _delete(req: Request, res: Response, next: NextFunction) {
         return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    serviceDelete(req.params.id)
+    serviceDelete({ id: req.params.id })
         .then(() => res.json({ message: 'Account deleted successfully' }))
         .catch(next);
 }
